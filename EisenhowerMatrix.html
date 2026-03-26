@@ -264,7 +264,36 @@
             font-size: 0.7rem; color: #999; background: #f0f0f0;
             padding: 1px 4px; border-radius: 3px; margin-left: 5px;
         }
-    </style>
+    
+        /* Toast notification for copy */
+        .copy-toast {
+            position: fixed;
+            bottom: 100px;
+            left: 50%;
+            transform: translateX(-50%) translateY(20px);
+            background: #c8e6c9;
+            color: #2e7d32;
+            padding: 10px 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(46, 125, 50, 0.3);
+            font-size: 0.9rem;
+            font-weight: 500;
+            opacity: 0;
+            transition: opacity 0.2s, transform 0.2s;
+            z-index: 1000;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .copy-toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+        .copy-toast .checkmark {
+            font-size: 1.2rem;
+        }
+
+</style>
 </head>
 <body>
 
@@ -800,7 +829,18 @@ function createTaskElement(task, level = 1) {
     const metaDiv = document.createElement('div'); metaDiv.className = 'task-meta';
     if (dateStr) { metaDiv.innerHTML = `<span>⏰ ${dateStr}</span>`; }
     contentDiv.appendChild(metaDiv);
-    if (task.topic) { const topicDiv = document.createElement('div'); topicDiv.className = 'task-topic'; topicDiv.textContent = `📧 ${task.topic}`; contentDiv.appendChild(topicDiv); }
+    if (task.topic) {
+            const topicDiv = document.createElement('div');
+            topicDiv.className = 'task-topic';
+            topicDiv.textContent = `📧 ${task.topic}`;
+            topicDiv.style.cursor = 'pointer';
+            topicDiv.title = 'Клик для копирования';
+            topicDiv.onclick = (e) => {
+                e.stopPropagation();
+                copyTopicToClipboard(task.topic);
+            };
+            contentDiv.appendChild(topicDiv);
+        }
     const actionsDiv = document.createElement('div'); actionsDiv.className = 'task-actions';
     const canComplete = canCompleteTask(task), canPromote = isSubtask;
     actionsDiv.innerHTML = `
@@ -1120,6 +1160,26 @@ function importData(input) {
         } catch (err) { alert(currentLang === 'ru' ? 'Ошибка чтения файла' : 'Error reading file'); }
     }; reader.readAsText(file);
 }
+
+// === Copy topic to clipboard ===
+function copyTopicToClipboard(text) {
+    if (!text) return;
+    
+    navigator.clipboard.writeText(text).then(() => {
+        const toast = document.getElementById('copyToast');
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+        }, 2000);
+    }).catch(err => {
+        console.error('Failed to copy:', err);
+    });
+}
+
 </script>
+
+    <!-- Copy toast notification -->
+    <div class="copy-toast" id="copyToast"><span class="checkmark">✓</span><span id="copyToastText">Скопировано в буфер обмена</span></div>
+
 </body>
 </html>
