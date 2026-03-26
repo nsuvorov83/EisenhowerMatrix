@@ -847,20 +847,77 @@ function startInlineEdit(cardEl, task) {
     input.addEventListener('blur', () => { setTimeout(() => { if (document.activeElement !== input) saveEdit(); }, 150); });
 }
 function makeTaskSubtask(taskId) {
-    const task = tasks.find(t => t.id === taskId); if (!task) return;
-    const quadrantTasks = tasks.filter(t => t.quadrant === task.quadrant), taskIndex = quadrantTasks.findIndex(t => t.id === taskId);
-    if (taskIndex > 0) {
-        const parentTask = quadrantTasks[taskIndex - 1], parentLevel = getTaskLevel(parentTask.id);
-        if (parentLevel >= MAX_LEVEL) { alert(translations[currentLang].max_level_reached); return; }
-        const oldParentId = task.parentId; task.parentId = parentTask.id;
-        if (oldParentId) expandedTasks.add(parentTask.id); saveTasks();
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    const quadrantTasks = tasks
+        .filter(t => t.quadrant === task.quadrant)
+        .sort((a, b) => {
+            if (!a.parentId && b.parentId) return -1;
+            if (a.parentId && !b.parentId) return 1;
+            return a.id - b.id;
+        });
+    
+    const taskIndex = quadrantTasks.findIndex(t => t.id === taskId);
+    const currentLevel = getTaskLevel(taskId);
+    let parentTask = null;
+    
+    for (let i = taskIndex - 1; i >= 0; i--) {
+        const candidate = quadrantTasks[i];
+        const candidateLevel = getTaskLevel(candidate.id);
+        
+        if (candidateLevel === currentLevel) {
+            parentTask = candidate;
+            break;
+        }
+    }
+    
+    if (!parentTask) {
+        for (let i = taskIndex - 1; i >= 0; i--) {
+            const candidate = quadrantTasks[i];
+            const candidateLevel = getTaskLevel(candidate.id);
+            
+            if (candidateLevel === currentLevel - 1) {
+                parentTask = candidate;
+                break;
+            }
+        }
+    }
+    
+    if (parentTask) {
+        const parentLevel = getTaskLevel(parentTask.id);
+        if (parentLevel >= MAX_LEVEL) {
+            alert(translations[currentLang].max_level_reached);
+            return;
+        }
+        
+        const oldParentId = task.parentId;
+        task.parentId = parentTask.id;
+        
+        if (oldParentId) {
+            expandedTasks.add(parentTask.id);
+        }
+        
+        saveTasks();
+        renderTasks();
     }
 }
 function promoteTask(taskId) {
-    const task = tasks.find(t => t.id === taskId); if (!task) return;
-    if (!task.parentId) { alert(translations[currentLang].already_root); return; }
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    if (!task.parentId) {
+        alert(translations[currentLang].already_root);
+        return;
+    }
+    
     const parentTask = tasks.find(t => t.id === task.parentId);
-    task.parentId = parentTask ? parentTask.parentId : null; saveTasks(); renderTasks();
+    
+    if (parentTask) {
+        task.parentId = parentTask.parentId;
+        saveTasks();
+        renderTasks();
+    }
 }
 function promoteTaskSelected() { if (selectedTasks.size !== 1) { alert(currentLang === 'ru' ? 'Выберите одну задачу' : 'Select one task'); return; } promoteTask([...selectedTasks][0]); clearSelection(); }
 function makeSubtaskSelected() { if (selectedTasks.size !== 1) { alert(currentLang === 'ru' ? 'Выберите одну задачу' : 'Select one task'); return; } makeTaskSubtask([...selectedTasks][0]); clearSelection(); }
