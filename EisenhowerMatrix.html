@@ -768,7 +768,7 @@ function renderTaskWithSubtasks(container, task, level = 1) {
 function createTaskElement(task, level = 1) {
     const div = document.createElement('div'), isSubtask = task.parentId !== null && task.parentId !== undefined;
     div.className = 'task-card' + (selectedTasks.has(task.id) ? ' selected' : '') + (task.completed ? ' completed' : '') + (isSubtask ? ' subtask' : '') + ` level-${Math.min(level, MAX_LEVEL)}`;
-    if (!isSubtask && selectedTasks.size <= 1 && !task.completed) { div.draggable = true; div.addEventListener('dragstart', dragStart); div.addEventListener('dragend', dragEnd); }
+    if (selectedTasks.size <= 1 && !task.completed) { div.draggable = true; div.addEventListener('dragstart', dragStart); div.addEventListener('dragend', dragEnd); }
     else div.draggable = false;
     div.id = `task-${task.id}`;
     div.addEventListener('click', (e) => {
@@ -848,7 +848,7 @@ function startInlineEdit(cardEl, task) {
 }
 function makeTaskSubtask(taskId) {
     const task = tasks.find(t => t.id === taskId); if (!task) return;
-    const quadrantTasks = tasks.filter(t => t.quadrant === task.quadrant && !t.parentId), taskIndex = quadrantTasks.findIndex(t => t.id === taskId);
+    const quadrantTasks = tasks.filter(t => t.quadrant === task.quadrant), taskIndex = quadrantTasks.findIndex(t => t.id === taskId);
     if (taskIndex > 0) {
         const parentTask = quadrantTasks[taskIndex - 1], parentLevel = getTaskLevel(parentTask.id);
         if (parentLevel >= MAX_LEVEL) { alert(translations[currentLang].max_level_reached); return; }
@@ -1031,7 +1031,7 @@ function drop(e) {
     saveTasks(); renderTasks();
 }
 function getDragAfterElement(container, y) {
-    const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging):not(.subtask)')];
+    const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
     return draggableElements.reduce((closest, child) => {
         const box = child.getBoundingClientRect(), offset = y - box.top - box.height / 2;
         if (offset < 0 && offset > closest.offset) return { offset, element: child }; else return closest;
