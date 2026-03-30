@@ -1178,16 +1178,24 @@ function deleteSelected() {
     const hasSubtasks = [...selectedTasks].some(id => getSubtasks(id).length > 0),
         msg = currentLang === 'ru' ? `Удалить ${selectedTasks.size} задач(и)?${hasSubtasks ? '\n\n⚠️ Подзадачи также будут удалены!' : ''}` : `Delete ${selectedTasks.size} task(s)?${hasSubtasks ? '\n\n⚠️ Subtasks will also be deleted!' : ''}`;
     if (confirm(msg)) {
-            // Удаляем задачи из WIP
-            [...selectedTasks].forEach(id => {
-                if (workTasks.has(id)) workTasks.delete(id);
-                getAllSubtasks(id).forEach(st => {
-                    if (workTasks.has(st.id)) workTasks.delete(st.id);
-                });
+        // Удаляем задачи из WIP
+        [...selectedTasks].forEach(id => {
+            if (workTasks.has(id)) workTasks.delete(id);
+            getAllSubtasks(id).forEach(st => {
+                if (workTasks.has(st.id)) workTasks.delete(st.id);
             });
-        [...selectedTasks].forEach(id => { getAllSubtasks(id).forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); });
-        tasks = tasks.filter(t => !selectedTasks.has(t.id)); selectedTasks.clear(); saveTasks(); renderTasks();
-            saveWorkTasks();
+        });
+        [...selectedTasks].forEach(id => { 
+            getAllSubtasks(id).forEach(st => { 
+                tasks = tasks.filter(t => t.id !== st.id); 
+            }); 
+        });
+        tasks = tasks.filter(t => !selectedTasks.has(t.id)); 
+        selectedTasks.clear(); 
+        saveTasks(); 
+        renderTasks();
+        saveWorkTasks();
+        updateWipUI();
     }
 }
 function completeSelected() {
@@ -1195,26 +1203,74 @@ function completeSelected() {
     const t = translations[currentLang]; let canCompleteAll = true;
     selectedTasks.forEach(id => { const task = tasks.find(t => t.id === id); if (task && !canCompleteTask(task)) canCompleteAll = false; });
     if (!canCompleteAll) { alert(t.cannot_complete_parent); return; }
-    selectedTasks.forEach(id => { const task = tasks.find(t => t.id === id); if (task) task.completed = true; });
-    selectedTasks.clear(); saveTasks(); renderTasks();
+    selectedTasks.forEach(id => { 
+        const task = tasks.find(t => t.id === id); 
+        if (task) {
+            task.completed = true;
+            // Если задача была в WIP - удаляем её оттуда
+            if (workTasks.has(id)) {
+                workTasks.delete(id);
+            }
+            // Также удаляем все подзадачи из WIP
+            getAllSubtasks(id).forEach(st => {
+                if (workTasks.has(st.id)) {
+                    workTasks.delete(st.id);
+                }
+            });
+        }
+    });
+    selectedTasks.clear(); 
+    saveTasks(); 
+    renderTasks();
+    saveWorkTasks();
+    updateWipUI();
 }
 function quickDelete(id) {
     const task = tasks.find(t => t.id === id); if (!task) return;
     const allSubtasks = getAllSubtasks(id),
         msg = currentLang === 'ru' ? `Удалить эту задачу?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} подзадача(и) также будут удалены!` : ''}` : `Delete this task?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} subtask(s) will also be deleted!` : ''}`;
-    if (confirm(msg)) { allSubtasks.forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); tasks = tasks.filter(t => t.id !== id); selectedTasks.delete(id); saveTasks(); renderTasks(); }
-            // Удаляем из WIP
-            if (workTasks.has(id)) workTasks.delete(id);
-            allSubtasks.forEach(st => {
-                if (workTasks.has(st.id)) workTasks.delete(st.id);
-            });
+    if (confirm(msg)) { 
+        allSubtasks.forEach(st => { 
+            tasks = tasks.filter(t => t.id !== st.id); 
+        }); 
+        tasks = tasks.filter(t => t.id !== id); 
+        selectedTasks.delete(id); 
+        saveTasks(); 
+        renderTasks(); 
+        // Удаляем из WIP
+        if (workTasks.has(id)) workTasks.delete(id);
+        allSubtasks.forEach(st => {
+            if (workTasks.has(st.id)) workTasks.delete(st.id);
+        });
+        saveWorkTasks();
+        updateWipUI();
+    }
 }
 function toggleComplete(id) {
-    const task = tasks.find(t => t.id === id); if (task) {
-        if (!task.completed && !canCompleteTask(task)) { alert(translations[currentLang].cannot_complete_parent); return; }
-        task.completed = !task.completed; if (task.completed) getAllSubtasks(id).forEach(st => st.completed = true);
-        saveTasks(); renderTasks();
-            saveWorkTasks();
+    const task = tasks.find(t => t.id === id); 
+    if (task) {
+        if (!task.completed && !canCompleteTask(task)) { 
+            alert(translations[currentLang].cannot_complete_parent); 
+            return; 
+        }
+        task.completed = !task.completed; 
+        if (task.completed) {
+            getAllSubtasks(id).forEach(st => st.completed = true);
+            // Если задача была в WIP - удаляем её оттуда
+            if (workTasks.has(id)) {
+                workTasks.delete(id);
+            }
+            // Также удаляем все подзадачи из WIP
+            getAllSubtasks(id).forEach(st => {
+                if (workTasks.has(st.id)) {
+                    workTasks.delete(st.id);
+                }
+            });
+        }
+        saveTasks(); 
+        renderTasks();
+        saveWorkTasks();
+        updateWipUI();
     }
 }
 
@@ -1297,12 +1353,23 @@ function saveFromSidebar() {
 function deleteFromSidebar() {
     const id = parseInt(document.getElementById('editTaskId').value), task = tasks.find(t => t.id === id); if (!task) return;
     const allSubtasks = getAllSubtasks(id), msg = currentLang === 'ru' ? `Удалить эту задачу?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} подзадача(и) также будут удалены!` : ''}` : `Delete this task?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} subtask(s) will also be deleted!` : ''}`;
-    if (confirm(msg)) { allSubtasks.forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); tasks = tasks.filter(t => t.id !== id); selectedTasks.delete(id); saveTasks(); renderTasks(); closeSidebar(); }
-            // Удаляем из WIP
-            if (workTasks.has(id)) workTasks.delete(id);
-            allSubtasks.forEach(st => {
-                if (workTasks.has(st.id)) workTasks.delete(st.id);
-            });
+    if (confirm(msg)) { 
+        allSubtasks.forEach(st => { 
+            tasks = tasks.filter(t => t.id !== st.id); 
+        }); 
+        tasks = tasks.filter(t => t.id !== id); 
+        selectedTasks.delete(id); 
+        saveTasks(); 
+        renderTasks(); 
+        closeSidebar();
+        // Удаляем из WIP
+        if (workTasks.has(id)) workTasks.delete(id);
+        allSubtasks.forEach(st => {
+            if (workTasks.has(st.id)) workTasks.delete(st.id);
+        });
+        saveWorkTasks();
+        updateWipUI();
+    }
 }
 
 function dragStart(e) {
