@@ -293,6 +293,129 @@
             font-size: 1.2rem;
         }
 
+
+        /* Блок "В работе" */
+        .wip-section {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 12px;
+            padding: 15px 20px;
+            margin-bottom: 20px;
+            display: none;
+            flex-shrink: 0;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+        .wip-section h3 {
+            color: white;
+            margin: 0 0 12px 0;
+            font-size: 1.1rem;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .wip-count {
+            background: rgba(255,255,255,0.2);
+            padding: 2px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+        }
+        .wip-tasks {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .wip-task-card {
+            background: white;
+            border-radius: 8px;
+            padding: 10px 15px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #9b59b6;
+        }
+        .wip-task-title {
+            font-weight: 500;
+            font-size: 0.9rem;
+            max-width: 300px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .wip-task-meta {
+            font-size: 0.7rem;
+            color: #888;
+            margin-left: auto;
+        }
+        .wip-return-btn {
+            background: #f0f0f0;
+            border: none;
+            border-radius: 6px;
+            padding: 4px 10px;
+            cursor: pointer;
+            font-size: 0.75rem;
+            transition: 0.2s;
+        }
+        .wip-return-btn:hover {
+            background: #e0e0e0;
+        }
+        .wip-limit-warning {
+            background: rgba(255,255,255,0.15);
+            border-radius: 8px;
+            padding: 8px 12px;
+            margin-top: 10px;
+            font-size: 0.75rem;
+            color: #ffe0b3;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        /* Стиль для задачи, взятой в работу */
+        .task-card.in-work {
+            border-right: 3px solid #9b59b6;
+            border-left-color: #9b59b6;
+            position: relative;
+        }
+        .in-work-badge {
+            position: absolute;
+            top: -8px;
+            right: 8px;
+            background: #9b59b6;
+            color: white;
+            font-size: 0.65rem;
+            padding: 2px 8px;
+            border-radius: 20px;
+            font-weight: bold;
+            z-index: 10;
+        }
+        .take-to-work-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            color: #9b59b6;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .take-to-work-btn:hover {
+            background: #f0e6ff;
+            transform: scale(1.05);
+        }
+        .return-from-work-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            color: #f39c12;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .return-from-work-btn:hover {
+            background: #fff3e0;
+            transform: scale(1.05);
+        }
+
 </style>
 </head>
 <body>
@@ -308,7 +431,19 @@
     </div>
 </header>
 
-<div class="main-wrapper">
+
+    <div class="wip-section" id="wipSection">
+        <h3>
+            📋 В работе 
+            <span class="wip-count" id="wipCount">0/3</span>
+        </h3>
+        <div class="wip-tasks" id="wipTasksList"></div>
+        <div class="wip-limit-warning" id="wipWarning" style="display: none;">
+            ⚠️ Нельзя взять больше 3 задач одновременно. Завершите или верните одну из текущих.
+        </div>
+    </div>
+
+    <div class="main-wrapper">
     <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeSidebar()"></div>
     <div class="sidebar" id="editSidebar">
         <div class="sidebar-header">
@@ -1176,6 +1311,245 @@ function copyTopicToClipboard(text) {
     });
 }
 
+
+    // === WIP: Управление задачами "В работе" (лимит 3) ===
+    let workTasks = new Set();
+    
+    function loadWorkTasks() {
+        const stored = localStorage.getItem('nikolay_vtb_work_tasks');
+        if (stored) {
+            try {
+                const arr = JSON.parse(stored);
+                workTasks.clear();
+                arr.forEach(id => workTasks.add(id));
+            } catch(e) {}
+        }
+        updateWipUI();
+    }
+    
+    function saveWorkTasks() {
+        localStorage.setItem('nikolay_vtb_work_tasks', JSON.stringify([...workTasks]));
+    }
+    
+    function updateWipUI() {
+        const wipSection = document.getElementById('wipSection');
+        const wipTasksList = document.getElementById('wipTasksList');
+        const wipCountSpan = document.getElementById('wipCount');
+        const wipWarning = document.getElementById('wipWarning');
+        
+        if (!wipSection) return;
+        
+        const count = workTasks.size;
+        if (wipCountSpan) wipCountSpan.textContent = `${count}/3`;
+        
+        if (count > 0) {
+            wipSection.style.display = 'block';
+            if (wipWarning) wipWarning.style.display = count >= 3 ? 'flex' : 'none';
+        } else {
+            wipSection.style.display = 'none';
+        }
+        
+        if (wipTasksList) {
+            wipTasksList.innerHTML = '';
+            for (let taskId of workTasks) {
+                const task = tasks.find(t => t.id === taskId);
+                if (task) {
+                    const wipCard = document.createElement('div');
+                    wipCard.className = 'wip-task-card';
+                    wipCard.innerHTML = `
+                        <span class="wip-task-title">${escapeHtml(task.title)}</span>
+                        <span class="wip-task-meta">${(quadrantConfig[task.quadrant] || {}).name || 'Квадрант ' + task.quadrant}</span>
+                        <button class="wip-return-btn" onclick="returnFromWork(${task.id})">↩️ Вернуть</button>
+                    `;
+                    wipTasksList.appendChild(wipCard);
+                }
+            }
+        }
+        
+        // Обновляем визуальные пометки у задач в матрице
+        document.querySelectorAll('.task-card').forEach(card => {
+            const match = card.id.match(/task-(\d+)/);
+            if (!match) return;
+            const taskId = parseInt(match[1]);
+            
+            if (workTasks.has(taskId)) {
+                card.classList.add('in-work');
+                if (!card.querySelector('.in-work-badge')) {
+                    const badge = document.createElement('div');
+                    badge.className = 'in-work-badge';
+                    badge.textContent = '🔄 В работе';
+                    card.style.position = 'relative';
+                    card.appendChild(badge);
+                }
+            } else {
+                card.classList.remove('in-work');
+                const badge = card.querySelector('.in-work-badge');
+                if (badge) badge.remove();
+            }
+            
+            // Добавляем/обновляем кнопки в task-actions
+            const actionsDiv = card.querySelector('.task-actions');
+            if (!actionsDiv) return;
+            
+            const task = tasks.find(t => t.id === taskId);
+            if (!task || task.completed) return;
+            
+            // Кнопка "Взять в работу"
+            let takeBtn = actionsDiv.querySelector('.take-to-work-btn');
+            if (!workTasks.has(taskId)) {
+                if (!takeBtn) {
+                    takeBtn = document.createElement('button');
+                    takeBtn.className = 'btn-icon take-to-work-btn';
+                    takeBtn.innerHTML = '📋';
+                    takeBtn.title = 'Взять в работу';
+                    takeBtn.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        takeToWork(taskId); 
+                    };
+                    actionsDiv.insertBefore(takeBtn, actionsDiv.firstChild);
+                }
+            } else if (takeBtn) {
+                takeBtn.remove();
+            }
+            
+            // Кнопка "Вернуть из работы"
+            let returnBtn = actionsDiv.querySelector('.return-from-work-btn');
+            if (workTasks.has(taskId)) {
+                if (!returnBtn) {
+                    returnBtn = document.createElement('button');
+                    returnBtn.className = 'btn-icon return-from-work-btn';
+                    returnBtn.innerHTML = '↩️';
+                    returnBtn.title = 'Вернуть из работы';
+                    returnBtn.onclick = (e) => { 
+                        e.stopPropagation(); 
+                        returnFromWork(taskId); 
+                    };
+                    actionsDiv.insertBefore(returnBtn, actionsDiv.firstChild);
+                }
+            } else if (returnBtn) {
+                returnBtn.remove();
+            }
+        });
+    }
+    
+    function escapeHtml(str) {
+        if (!str) return '';
+        return str.replace(/[&<>]/g, function(m) {
+            if (m === '&') return '&amp;';
+            if (m === '<') return '&lt;';
+            if (m === '>') return '&gt;';
+            return m;
+        });
+    }
+    
+    function showWipToast(message, isError = true) {
+        let toast = document.getElementById('copyToast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.className = 'copy-toast';
+            toast.id = 'copyToast';
+            toast.innerHTML = '<span class="checkmark"></span><span id="copyToastText"></span>';
+            document.body.appendChild(toast);
+        }
+        const textSpan = document.getElementById('copyToastText');
+        if (textSpan) textSpan.textContent = message;
+        toast.style.background = isError ? '#ffebee' : '#e8f5e9';
+        toast.style.color = isError ? '#c62828' : '#2e7d32';
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            toast.style.background = '';
+            toast.style.color = '';
+        }, 2500);
+    }
+    
+    function takeToWork(taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task) return;
+        if (task.completed) {
+            showWipToast('❌ Нельзя взять в работу выполненную задачу', true);
+            return;
+        }
+        if (workTasks.has(taskId)) {
+            showWipToast('📋 Задача уже в работе', true);
+            return;
+        }
+        if (workTasks.size >= 3) {
+            showWipToast('⚠️ Лимит: нельзя работать более чем над 3 задачами одновременно!', true);
+            return;
+        }
+        workTasks.add(taskId);
+        saveWorkTasks();
+        updateWipUI();
+        showWipToast('✅ Задача "' + escapeHtml(task.title) + '" взята в работу', false);
+    }
+    
+    function returnFromWork(taskId) {
+        const task = tasks.find(t => t.id === taskId);
+        if (workTasks.has(taskId)) {
+            workTasks.delete(taskId);
+            saveWorkTasks();
+            updateWipUI();
+            const taskName = task ? escapeHtml(task.title) : 'Задача';
+            showWipToast('↩️ ' + taskName + ' возвращена в матрицу', false);
+        }
+    }
+    
+    // Перехватываем renderTasks для сохранения WIP состояния
+    if (typeof window.originalRenderTasks === 'undefined') {
+        window.originalRenderTasks = window.renderTasks;
+        window.renderTasks = function() {
+            if (window.originalRenderTasks) window.originalRenderTasks();
+            setTimeout(() => updateWipUI(), 50);
+        };
+    }
+    
+    // MutationObserver для динамического добавления кнопок к новым задачам
+    function observeForNewTasks() {
+        const container = document.getElementById('matrixContainer') || document.body;
+        const observer = new MutationObserver((mutations) => {
+            let shouldUpdate = false;
+            for (let mutation of mutations) {
+                if (mutation.addedNodes.length) {
+                    for (let node of mutation.addedNodes) {
+                        if (node.nodeType === 1) {
+                            if (node.classList && node.classList.contains('task-card')) {
+                                shouldUpdate = true;
+                                break;
+                            }
+                            if (node.querySelectorAll) {
+                                const cards = node.querySelectorAll('.task-card');
+                                if (cards.length > 0) {
+                                    shouldUpdate = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if (shouldUpdate) {
+                setTimeout(() => updateWipUI(), 100);
+            }
+        });
+        observer.observe(container, {
+            childList: true,
+            subtree: true
+        });
+    }
+    
+    // Инициализация после полной загрузки страницы
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', () => {
+            loadWorkTasks();
+            observeForNewTasks();
+            setTimeout(() => updateWipUI(), 200);
+        });
+    } else {
+        loadWorkTasks();
+        observeForNewTasks();
+        setTimeout(() => updateWipUI(), 200);
+    }
 </script>
 
     <!-- Copy toast notification -->
