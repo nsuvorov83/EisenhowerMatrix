@@ -1025,73 +1025,112 @@ function makeTaskSubtask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
-    const quadrantTasks = tasks
-        .filter(t => t.quadrant === task.quadrant)
-        .sort((a, b) => {
-            if (!a.parentId && b.parentId) return -1;
-            if (a.parentId && !b.parentId) return 1;
-            return a.id - b.id;
-        });
+    // Находим DOM элемент задачи
+    const taskElement = document.getElementById(`task-${taskId}`);
+    if (!taskElement) return;
     
-    const taskIndex = quadrantTasks.findIndex(t => t.id === taskId);
-    const currentLevel = getTaskLevel(taskId);
-    let parentTask = null;
+    // Находим все задачи в том же квадранте в порядке их отображения в DOM
+    const quadrantEl = taskElement.closest('.quadrant');
+    if (!quadrantEl) return;
     
-    for (let i = taskIndex - 1; i >= 0; i--) {
-        const candidate = quadrantTasks[i];
-        const candidateLevel = getTaskLevel(candidate.id);
+    const allTaskElements = Array.from(quadrantEl.querySelectorAll('.task-card'));
+    const currentIndex = allTaskElements.findIndex(el => el.id === `task-${taskId}`);
+    
+    if (currentIndex === -1) return;
+    
+    // Ищем ближайшую задачу выше (незавершённую)
+    let parentElement = null;
+    for (let i = currentIndex - 1; i >= 0; i--) {
+        const candidateEl = allTaskElements[i];
+        const candidateId = parseInt(candidateEl.id.replace('task-', ''));
+        const candidateTask = tasks.find(t => t.id === candidateId);
         
-        if (candidateLevel === currentLevel) {
-            parentTask = candidate;
+        // Проверяем, что задача не завершена
+        if (candidateTask && !candidateTask.completed) {
+            parentElement = candidateEl;
             break;
         }
     }
     
-    if (!parentTask) {
-        for (let i = taskIndex - 1; i >= 0; i--) {
-            const candidate = quadrantTasks[i];
-            const candidateLevel = getTaskLevel(candidate.id);
-            
-            if (candidateLevel === currentLevel - 1) {
-                parentTask = candidate;
-                break;
-            }
-        }
+    if (!parentElement) {
+        showWipToast(currentLang === 'ru' 
+            ? 'Нет задачи выше для создания подзадачи'
+            : 'No task above to create subtask', true);
+        return;
     }
     
-    if (parentTask) {
-        const parentLevel = getTaskLevel(parentTask.id);
-        if (parentLevel >= MAX_LEVEL) {
-            alert(translations[currentLang].max_level_reached);
-            return;
-        }
-        
-        const oldParentId = task.parentId;
-        task.parentId = parentTask.id;
-        
-        if (oldParentId) {
-            expandedTasks.add(parentTask.id);
-        }
-        
-        saveTasks();
-        renderTasks();
+    const parentId = parseInt(parentElement.id.replace('task-', ''));
+    const parentTask = tasks.find(t => t.id === parentId);
+    
+    if (!parentTask) return;
+    
+    // Проверяем уровень вложенности
+    const parentLevel = getTaskLevel(parentId);
+    if (parentLevel >= MAX_LEVEL) {
+        alert(translations[currentLang].max_level_reached);
+        return;
     }
+    
+    // Проверяем циклические ссылки
+    let isCircular = false;
+    let current = parentId;
+    while (current) {
+        if (current === taskId) {
+            isCircular = true;
+            break;
+        }
+        const parent = tasks.find(t => t.id === current);
+        current = parent ? parent.parentId : null;
+    }
+    
+    if (isCircular) {
+        alert(currentLang === 'ru' ? 'Нельзя создать циклическую зависимость' : 'Cannot create circular dependency');
+        return;
+    }
+    
+    // Сохраняем старое значение
+    const oldParentId = task.parentId;
+    task.parentId = parentId;
+    
+    // Раскрываем родителя
+    expandedTasks.add(parentId);
+    
+    // Раскрываем всех предков
+    let ancestor = parentTask;
+    while (ancestor && ancestor.parentId) {
+        expandedTasks.add(ancestor.parentId);
+        ancestor = tasks.find(t => t.id === ancestor.parentId);
+    }
+    
+    saveTasks();
+    renderTasks();
+    
+    // Показываем уведомление
+    showWipToast(currentLang === 'ru' 
+        ? `✓ "${task.title}" → подзадача "${parentTask.title}"`
+        : `✓ "${task.title}" → subtask of "${parentTask.title}"`, false);
 }
 function promoteTask(taskId) {
     const task = tasks.find(t => t.id === taskId);
     if (!task) return;
     
     if (!task.parentId) {
-        alert(translations[currentLang].already_root);
+        showWipToast(translations[currentLang].already_root, true);
         return;
     }
     
     const parentTask = tasks.find(t => t.id === task.parentId);
     
     if (parentTask) {
-        task.parentId = parentTask.parentId;
+        const grandParentId = parentTask.parentId;
+        task.parentId = grandParentId;
+        
         saveTasks();
         renderTasks();
+        
+        showWipToast(currentLang === 'ru' 
+            ? `↑ "${task.title}" повышен на уровень`
+            : `↑ "${task.title}" promoted`, false);
     }
 }
 function promoteTaskSelected() { if (selectedTasks.size !== 1) { alert(currentLang === 'ru' ? 'Выберите одну задачу' : 'Select one task'); return; } promoteTask([...selectedTasks][0]); clearSelection(); }
@@ -1266,21 +1305,224 @@ function deleteFromSidebar() {
             });
 }
 
-function dragStart(e) { draggedTaskId = parseInt(this.id.replace('task-', '')); setTimeout(() => this.classList.add('dragging'), 0); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', draggedTaskId); }
-function dragEnd() { this.classList.remove('dragging'); draggedTaskId = null; document.querySelectorAll('.quadrant').forEach(q => q.classList.remove('drag-over')); }
-function allowDrop(e) { e.preventDefault(); const quadrant = e.target.closest('.quadrant'); if (quadrant && draggedTaskId) { quadrant.classList.add('drag-over'); e.dataTransfer.dropEffect = 'move'; } }
-function dragLeave(e) { const quadrant = e.target.closest('.quadrant'); if (quadrant) { const rect = quadrant.getBoundingClientRect(); if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) quadrant.classList.remove('drag-over'); } }
+function dragStart(e) {
+        draggedTaskId = parseInt(this.id.replace('task-', ''));
+        const task = tasks.find(t => t.id === draggedTaskId);
+        if (task) {
+            e.dataTransfer.setData('text/plain', JSON.stringify({
+                id: draggedTaskId,
+                level: getTaskLevel(draggedTaskId),
+                parentId: task.parentId
+            }));
+        }
+        setTimeout(() => this.classList.add('dragging'), 0);
+        e.dataTransfer.effectAllowed = 'move';
+    }
+function dragEnd() {
+        this.classList.remove('dragging');
+        draggedTaskId = null;
+        document.querySelectorAll('.quadrant').forEach(q => q.classList.remove('drag-over'));
+        document.querySelectorAll('.task-card').forEach(card => {
+            card.classList.remove('drag-over');
+            card.style.borderTop = '';
+            card.style.borderBottom = '';
+        });
+    }
+function allowDrop(e) {
+        e.preventDefault();
+        const quadrant = e.target.closest('.quadrant');
+        const taskCard = e.target.closest('.task-card');
+        
+        if (draggedTaskId) {
+            if (quadrant) quadrant.classList.add('drag-over');
+            if (taskCard && taskCard.id !== `task-${draggedTaskId}`) {
+                taskCard.classList.add('drag-over');
+                // Показываем индикатор вставки
+                const rect = taskCard.getBoundingClientRect();
+                const y = e.clientY;
+                if (y < rect.top + rect.height / 2) {
+                    taskCard.style.borderTop = '2px solid var(--accent)';
+                    taskCard.style.borderBottom = '';
+                } else {
+                    taskCard.style.borderBottom = '2px solid var(--accent)';
+                    taskCard.style.borderTop = '';
+                }
+            }
+        }
+        e.dataTransfer.dropEffect = 'move';
+    }
+function dragLeave(e) {
+        const quadrant = e.target.closest('.quadrant');
+        const taskCard = e.target.closest('.task-card');
+        
+        if (quadrant) {
+            const rect = quadrant.getBoundingClientRect();
+            if (e.clientX < rect.left || e.clientX > rect.right || e.clientY < rect.top || e.clientY > rect.bottom) {
+                quadrant.classList.remove('drag-over');
+            }
+        }
+        
+        if (taskCard) {
+            taskCard.classList.remove('drag-over');
+            taskCard.style.borderTop = '';
+            taskCard.style.borderBottom = '';
+        }
+    }
 function drop(e) {
-    e.preventDefault(); const quadrantEl = e.target.closest('.quadrant'); if (!quadrantEl || !draggedTaskId) return;
-    quadrantEl.classList.remove('drag-over'); const newQuadrantId = parseInt(quadrantEl.dataset.quadrant), taskIndex = tasks.findIndex(t => t.id === draggedTaskId);
-    if (taskIndex === -1) return; const task = tasks[taskIndex];
-    if (task.quadrant === newQuadrantId) {
-        const listEl = quadrantEl.querySelector('.task-list'), afterElement = getDragAfterElement(listEl, e.clientY);
-        tasks.splice(taskIndex, 1); if (afterElement == null) tasks.push(task);
-        else { const afterId = parseInt(afterElement.id.replace('task-', '')), afterIndex = tasks.findIndex(t => t.id === afterId); tasks.splice(afterIndex, 0, task); }
-    } else { task.quadrant = newQuadrantId; tasks.splice(taskIndex, 1); tasks.push(task); }
-    saveTasks(); renderTasks();
-            saveWorkTasks();
+    e.preventDefault();
+    
+    const quadrantEl = e.target.closest('.quadrant');
+    const targetTaskCard = e.target.closest('.task-card');
+    
+    if (!quadrantEl || !draggedTaskId) {
+        clearDragIndicators();
+        return;
+    }
+    
+    clearDragIndicators();
+    
+    const draggedTask = tasks.find(t => t.id === draggedTaskId);
+    if (!draggedTask) return;
+    
+    const newQuadrantId = parseInt(quadrantEl.dataset.quadrant);
+    let newParentId = null;
+    let insertAfterTaskId = null;
+    
+    // Определяем, куда вставляем задачу
+    if (targetTaskCard && targetTaskCard.id !== `task-${draggedTaskId}`) {
+        const targetId = parseInt(targetTaskCard.id.replace('task-', ''));
+        const targetTask = tasks.find(t => t.id === targetId);
+        
+        if (targetTask) {
+            const rect = targetTaskCard.getBoundingClientRect();
+            const y = e.clientY;
+            const isInsertAfter = y > rect.top + rect.height / 2;
+            
+            if (isInsertAfter) {
+                insertAfterTaskId = targetId;
+                newParentId = targetTask.parentId;
+            } else {
+                // Вставляем перед целевой задачей, делаем подзадачей, если есть родитель
+                newParentId = targetTask.parentId;
+                insertAfterTaskId = null;
+                // Находим задачу, перед которой вставляем
+                const siblings = tasks.filter(t => t.parentId === newParentId && t.quadrant === newQuadrantId);
+                const targetIndex = siblings.findIndex(t => t.id === targetId);
+                if (targetIndex > 0) {
+                    insertAfterTaskId = siblings[targetIndex - 1].id;
+                }
+            }
+        }
+    }
+    
+    // Проверяем возможность создания подзадачи (макс уровень)
+    if (newParentId) {
+        const parentLevel = getTaskLevel(newParentId);
+        if (parentLevel >= MAX_LEVEL) {
+            alert(translations[currentLang].max_level_reached);
+            clearDragIndicators();
+            return;
+        }
+    }
+    
+    // Проверяем, не пытаемся ли сделать задачу подзадачей самой себя или своей подзадачи
+    if (newParentId === draggedTaskId) {
+        alert(currentLang === 'ru' ? 'Нельзя сделать задачу подзадачей самой себя' : 'Cannot make a task a subtask of itself');
+        clearDragIndicators();
+        return;
+    }
+    
+    // Проверяем циклические ссылки
+    let isCircular = false;
+    let current = newParentId;
+    while (current) {
+        if (current === draggedTaskId) {
+            isCircular = true;
+            break;
+        }
+        const parent = tasks.find(t => t.id === current);
+        current = parent ? parent.parentId : null;
+    }
+    
+    if (isCircular) {
+        alert(currentLang === 'ru' ? 'Нельзя создать циклическую зависимость' : 'Cannot create circular dependency');
+        clearDragIndicators();
+        return;
+    }
+    
+    // Сохраняем все подзадачи перемещаемой задачи
+    const draggedSubtasks = getAllSubtasks(draggedTaskId);
+    const draggedSubtasksIds = new Set(draggedSubtasks.map(st => st.id));
+    draggedSubtasksIds.add(draggedTaskId);
+    
+    // Проверяем, не пытаемся ли переместить задачу внутрь своей подзадачи
+    if (newParentId && draggedSubtasksIds.has(newParentId)) {
+        alert(currentLang === 'ru' ? 'Нельзя переместить задачу внутрь её подзадачи' : 'Cannot move a task into its subtask');
+        clearDragIndicators();
+        return;
+    }
+    
+    // Удаляем задачу из текущей позиции
+    const taskIndex = tasks.findIndex(t => t.id === draggedTaskId);
+    if (taskIndex === -1) return;
+    
+    tasks.splice(taskIndex, 1);
+    
+    // Обновляем свойства задачи
+    draggedTask.quadrant = newQuadrantId;
+    draggedTask.parentId = newParentId;
+    
+    // Вставляем задачу в нужное место
+    if (insertAfterTaskId) {
+        const insertAfterIndex = tasks.findIndex(t => t.id === insertAfterTaskId);
+        if (insertAfterIndex !== -1) {
+            tasks.splice(insertAfterIndex + 1, 0, draggedTask);
+        } else {
+            tasks.push(draggedTask);
+        }
+    } else if (newParentId) {
+        // Вставляем как подзадачу в конец списка подзадач родителя
+        const siblings = tasks.filter(t => t.parentId === newParentId);
+        if (siblings.length === 0) {
+            tasks.push(draggedTask);
+        } else {
+            const lastSiblingIndex = tasks.findIndex(t => t.id === siblings[siblings.length - 1].id);
+            tasks.splice(lastSiblingIndex + 1, 0, draggedTask);
+        }
+    } else {
+        // Вставляем как корневую задачу
+        const rootTasks = tasks.filter(t => !t.parentId && t.quadrant === newQuadrantId);
+        if (rootTasks.length === 0) {
+            tasks.push(draggedTask);
+        } else {
+            const lastRootIndex = tasks.findIndex(t => t.id === rootTasks[rootTasks.length - 1].id);
+            tasks.splice(lastRootIndex + 1, 0, draggedTask);
+        }
+    }
+    
+    // Раскрываем родительские задачи для отображения
+    if (newParentId) {
+        expandedTasks.add(newParentId);
+        let parent = tasks.find(t => t.id === newParentId);
+        while (parent && parent.parentId) {
+            expandedTasks.add(parent.parentId);
+            parent = tasks.find(t => t.id === parent.parentId);
+        }
+    }
+    
+    saveTasks();
+    renderTasks();
+    saveWorkTasks();
+    updateWipUI();
+    
+    function clearDragIndicators() {
+        document.querySelectorAll('.quadrant').forEach(q => q.classList.remove('drag-over'));
+        document.querySelectorAll('.task-card').forEach(card => {
+            card.classList.remove('drag-over');
+            card.style.borderTop = '';
+            card.style.borderBottom = '';
+        });
+    }
 }
 function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
