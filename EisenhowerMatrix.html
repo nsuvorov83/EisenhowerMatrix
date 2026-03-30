@@ -1139,8 +1139,16 @@ function deleteSelected() {
     const hasSubtasks = [...selectedTasks].some(id => getSubtasks(id).length > 0),
         msg = currentLang === 'ru' ? `Удалить ${selectedTasks.size} задач(и)?${hasSubtasks ? '\n\n⚠️ Подзадачи также будут удалены!' : ''}` : `Delete ${selectedTasks.size} task(s)?${hasSubtasks ? '\n\n⚠️ Subtasks will also be deleted!' : ''}`;
     if (confirm(msg)) {
+            // Удаляем задачи из WIP
+            [...selectedTasks].forEach(id => {
+                if (workTasks.has(id)) workTasks.delete(id);
+                getAllSubtasks(id).forEach(st => {
+                    if (workTasks.has(st.id)) workTasks.delete(st.id);
+                });
+            });
         [...selectedTasks].forEach(id => { getAllSubtasks(id).forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); });
         tasks = tasks.filter(t => !selectedTasks.has(t.id)); selectedTasks.clear(); saveTasks(); renderTasks();
+            saveWorkTasks();
     }
 }
 function completeSelected() {
@@ -1156,12 +1164,18 @@ function quickDelete(id) {
     const allSubtasks = getAllSubtasks(id),
         msg = currentLang === 'ru' ? `Удалить эту задачу?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} подзадача(и) также будут удалены!` : ''}` : `Delete this task?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} subtask(s) will also be deleted!` : ''}`;
     if (confirm(msg)) { allSubtasks.forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); tasks = tasks.filter(t => t.id !== id); selectedTasks.delete(id); saveTasks(); renderTasks(); }
+            // Удаляем из WIP
+            if (workTasks.has(id)) workTasks.delete(id);
+            allSubtasks.forEach(st => {
+                if (workTasks.has(st.id)) workTasks.delete(st.id);
+            });
 }
 function toggleComplete(id) {
     const task = tasks.find(t => t.id === id); if (task) {
         if (!task.completed && !canCompleteTask(task)) { alert(translations[currentLang].cannot_complete_parent); return; }
         task.completed = !task.completed; if (task.completed) getAllSubtasks(id).forEach(st => st.completed = true);
         saveTasks(); renderTasks();
+            saveWorkTasks();
     }
 }
 
@@ -1245,6 +1259,11 @@ function deleteFromSidebar() {
     const id = parseInt(document.getElementById('editTaskId').value), task = tasks.find(t => t.id === id); if (!task) return;
     const allSubtasks = getAllSubtasks(id), msg = currentLang === 'ru' ? `Удалить эту задачу?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} подзадача(и) также будут удалены!` : ''}` : `Delete this task?${allSubtasks.length > 0 ? `\n\n⚠️ ${allSubtasks.length} subtask(s) will also be deleted!` : ''}`;
     if (confirm(msg)) { allSubtasks.forEach(st => { tasks = tasks.filter(t => t.id !== st.id); }); tasks = tasks.filter(t => t.id !== id); selectedTasks.delete(id); saveTasks(); renderTasks(); closeSidebar(); }
+            // Удаляем из WIP
+            if (workTasks.has(id)) workTasks.delete(id);
+            allSubtasks.forEach(st => {
+                if (workTasks.has(st.id)) workTasks.delete(st.id);
+            });
 }
 
 function dragStart(e) { draggedTaskId = parseInt(this.id.replace('task-', '')); setTimeout(() => this.classList.add('dragging'), 0); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', draggedTaskId); }
@@ -1261,6 +1280,7 @@ function drop(e) {
         else { const afterId = parseInt(afterElement.id.replace('task-', '')), afterIndex = tasks.findIndex(t => t.id === afterId); tasks.splice(afterIndex, 0, task); }
     } else { task.quadrant = newQuadrantId; tasks.splice(taskIndex, 1); tasks.push(task); }
     saveTasks(); renderTasks();
+            saveWorkTasks();
 }
 function getDragAfterElement(container, y) {
     const draggableElements = [...container.querySelectorAll('.task-card:not(.dragging)')];
@@ -1324,11 +1344,28 @@ function copyTopicToClipboard(text) {
                 arr.forEach(id => workTasks.add(id));
             } catch(e) {}
         }
+        // Очищаем от несуществующих задач
+        cleanupWorkTasks();
         updateWipUI();
     }
     
     function saveWorkTasks() {
         localStorage.setItem('nikolay_vtb_work_tasks', JSON.stringify([...workTasks]));
+    }
+
+    function cleanupWorkTasks() {
+        let dirty = false;
+        for (let taskId of workTasks) {
+            const taskExists = tasks.some(t => t.id === taskId);
+            if (!taskExists) {
+                workTasks.delete(taskId);
+                dirty = true;
+            }
+        }
+        if (dirty) {
+            saveWorkTasks();
+            updateWipUI();
+        }
     }
     
     function updateWipUI() {
@@ -1430,6 +1467,10 @@ function copyTopicToClipboard(text) {
                 returnBtn.remove();
             }
         });
+    }
+
+    function updateWIPCounter() {
+        updateWipUI();
     }
     
     function escapeHtml(str) {
