@@ -334,6 +334,30 @@
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             border-left: 4px solid #9b59b6;
         }
+        .wip-task-actions {
+            display: flex;
+            gap: 5px;
+            margin-left: auto;
+        }
+        .wip-task-card .btn-icon {
+            background: none;
+            border: none;
+            cursor: pointer;
+            font-size: 1rem;
+            padding: 4px 6px;
+            color: #666;
+            transition: 0.2s;
+            border-radius: 4px;
+        }
+        .wip-task-card .btn-icon:hover {
+            background: #f0f0f0;
+        }
+        .wip-task-card .btn-icon.wip-return-btn:hover {
+            color: #f39c12;
+        }
+        .wip-task-card .btn-icon.wip-complete-btn:hover {
+            color: #2e7d32;
+        }
         .wip-task-content {
             display: flex;
             align-items: center;
@@ -378,18 +402,7 @@
             color: #888;
             margin-left: auto;
         }
-        .wip-return-btn {
-            background: #f0f0f0;
-            border: none;
-            border-radius: 6px;
-            padding: 4px 10px;
-            cursor: pointer;
-            font-size: 0.75rem;
-            transition: 0.2s;
-        }
-        .wip-return-btn:hover {
-            background: #e0e0e0;
-        }
+        
         .wip-limit-warning {
             background: rgba(255,255,255,0.15);
             border-radius: 8px;
@@ -452,7 +465,15 @@
         .wip-task-path-wrapper {
             margin-bottom: 4px;
         }
-    </style>
+    
+        .task-topic {
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+        }
+        .task-topic:active {
+            transform: scale(0.98);
+        }</style>
 </head>
 <body>
 
@@ -1008,7 +1029,9 @@ function createTaskElement(task, level = 1) {
             topicDiv.title = 'Клик для копирования';
             topicDiv.onclick = (e) => {
                 e.stopPropagation();
+                e.preventDefault();
                 copyTopicToClipboard(task.topic);
+                return false;
             };
             contentDiv.appendChild(topicDiv);
         }
@@ -1776,7 +1799,11 @@ function copyTopicToClipboard(text) {
                         <div class="wip-task-content">
                             <span class="wip-task-title" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</span>
                             <span class="wip-task-meta">${(quadrantConfig[task.quadrant] || {}).name || 'Квадрант ' + task.quadrant}</span>
-                            <button class="wip-return-btn" onclick="returnFromWork(${task.id})">↩️ Вернуть</button>
+                            
+                            <div class="wip-task-actions">
+                                <button class="btn-icon wip-return-btn" onclick="returnFromWork(${task.id})" title="Вернуть в матрицу">↩️</button>
+                                <button class="btn-icon wip-complete-btn" onclick="toggleComplete(${task.id})" title="Завершить задачу">🏁</button>
+                            </div>
                         </div>
                     `;
                     wipTasksList.appendChild(wipCard);
