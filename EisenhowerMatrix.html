@@ -323,15 +323,47 @@
             flex-wrap: wrap;
             gap: 10px;
         }
+        
         .wip-task-card {
             background: white;
             border-radius: 8px;
             padding: 10px 15px;
             display: flex;
-            align-items: center;
-            gap: 12px;
+            flex-direction: column;
+            gap: 6px;
             box-shadow: 0 2px 8px rgba(0,0,0,0.1);
             border-left: 4px solid #9b59b6;
+        }
+        .wip-task-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .wip-task-title {
+            font-weight: 500;
+            font-size: 0.9rem;
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+        .wip-task-path {
+            font-size: 0.7rem;
+            color: #666;
+            background: #f0f0f0;
+            padding: 4px 10px;
+            border-radius: 6px;
+            display: inline-block;
+            word-break: break-all;
+            line-height: 1.4;
+        }
+        .wip-task-meta {
+            font-size: 0.7rem;
+            color: #888;
+            background: #f5f5f5;
+            padding: 2px 8px;
+            border-radius: 12px;
+            white-space: nowrap;
         }
         .wip-task-title {
             font-weight: 500;
@@ -416,7 +448,11 @@
             transform: scale(1.05);
         }
 
-</style>
+
+        .wip-task-path-wrapper {
+            margin-bottom: 4px;
+        }
+    </style>
 </head>
 <body>
 
@@ -1677,6 +1713,31 @@ function copyTopicToClipboard(text) {
         }
     }
     
+    
+    
+    // Helper function to get the full path of a task (breadcrumb from root)
+    function getTaskPath(taskId) {
+        const path = [];
+        let currentId = taskId;
+        let maxDepth = 10;
+        while (currentId && maxDepth-- > 0) {
+            const task = tasks.find(t => t.id === currentId);
+            if (!task) break;
+            path.unshift(task.title);
+            currentId = task.parentId;
+        }
+        return path;
+    }
+    
+    // Helper function to get formatted path string with arrows
+    function getFormattedTaskPath(taskId) {
+        const path = getTaskPath(taskId);
+        if (path.length <= 1) return null;
+        // Format: "Parent Task → Subparent → ..."
+        const parentPath = path.slice(0, -1);
+        return parentPath.join(' → ');
+    }
+
     function updateWipUI() {
         const wipSection = document.getElementById('wipSection');
         const wipTasksList = document.getElementById('wipTasksList');
@@ -1702,10 +1763,21 @@ function copyTopicToClipboard(text) {
                 if (task) {
                     const wipCard = document.createElement('div');
                     wipCard.className = 'wip-task-card';
+                    const fullPath = getFormattedTaskPath(task.id);
+                    const pathHtml = fullPath ? `
+                        <div class="wip-task-path-wrapper">
+                            <span class="wip-task-path" title="${escapeHtml(fullPath)}">
+                                📂 ${escapeHtml(fullPath)}
+                            </span>
+                        </div>
+                    ` : '';
                     wipCard.innerHTML = `
-                        <span class="wip-task-title">${escapeHtml(task.title)}</span>
-                        <span class="wip-task-meta">${(quadrantConfig[task.quadrant] || {}).name || 'Квадрант ' + task.quadrant}</span>
-                        <button class="wip-return-btn" onclick="returnFromWork(${task.id})">↩️ Вернуть</button>
+                        ${pathHtml}
+                        <div class="wip-task-content">
+                            <span class="wip-task-title" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</span>
+                            <span class="wip-task-meta">${(quadrantConfig[task.quadrant] || {}).name || 'Квадрант ' + task.quadrant}</span>
+                            <button class="wip-return-btn" onclick="returnFromWork(${task.id})">↩️ Вернуть</button>
+                        </div>
                     `;
                     wipTasksList.appendChild(wipCard);
                 }
