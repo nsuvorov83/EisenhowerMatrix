@@ -480,12 +480,12 @@
 <header>
     <h1 data-i18n="title">Матрица Эйзенхауэра</h1>
     <div class="controls">
+        <button onclick="collapseAllSubtasks()" data-i18n="btn_collapse_all" style="padding: 8px 10px;">🗞</button>
         <button onclick="openSettings()" data-i18n="btn_settings">⚙️ Настройки</button>
         <button onclick="openImportSidebar()" data-i18n="btn_import_text">📋 Импорт текста</button>
         <button onclick="exportData()" data-i18n="btn_backup">💾 Скачать бэкап</button>
         <label for="importFile" style="display:inline-block; border:1px solid #ddd; padding: 8px 16px; border-radius:4px; cursor:pointer;" data-i18n="btn_import">📂 Загрузить JSON</label>
         <input type="file" id="importFile" style="display:none" onchange="importData(this)">
-        <button onclick="collapseAllSubtasks()" data-i18n="btn_collapse_all">📉 Свернуть все вложенные</button>
     </div>
 </header>
 
