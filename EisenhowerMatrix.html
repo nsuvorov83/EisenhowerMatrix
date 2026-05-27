@@ -118,6 +118,7 @@
         .btn-icon.delete:hover { color: var(--danger); }
         .btn-icon.subtask:hover { color: var(--accent); }
         .btn-icon.promote:hover { color: var(--success); }
+        .btn-icon.move-first:hover { color: var(--accent); }
         .add-task-btn {
             width: 100%; padding: 8px; background: rgba(255,255,255,0.5);
             border: 1px dashed #aaa; border-radius: 4px; cursor: pointer;
@@ -1040,11 +1041,13 @@ function createTaskElement(task, level = 1) {
         }
     const actionsDiv = document.createElement('div'); actionsDiv.className = 'task-actions';
     const canComplete = canCompleteTask(task), canPromote = isSubtask;
+    const moveFirstTitle = currentLang === 'ru' ? 'Сделать задачу первой в списке' : 'Move task to first position in list';
     actionsDiv.innerHTML = `
         <button class="btn-icon complete" onclick="toggleComplete(${task.id}); event.stopPropagation();" title="${task.completed ? '↩️' : (canComplete ? '🏁' : '⚠️')}">${task.completed ? '↩️' : '🏁'}</button>
         <button class="btn-icon" onclick="openTaskSidebar(${task.id}); event.stopPropagation();" title="✏️">✏️</button>
         ${canPromote ? `<button class="btn-icon promote" onclick="promoteTask(${task.id}); event.stopPropagation();" title="${currentLang === 'ru' ? 'Повысить уровень' : 'Promote'}">↰</button>` : ''}
         <button class="btn-icon subtask" onclick="addSubtaskInline(${task.id}); event.stopPropagation();" title="${currentLang === 'ru' ? '+ Подзадача' : '+ Subtask'}">➕</button>
+        <button class="btn-icon move-first" onclick="moveTaskToFirst(${task.id}); event.stopPropagation();" title="${moveFirstTitle}">⬆️</button>
         <button class="btn-icon delete" onclick="quickDelete(${task.id}); event.stopPropagation();" title="🗑">🗑</button>
     `;
     const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.className = 'task-checkbox';
@@ -1201,6 +1204,38 @@ function promoteTask(taskId) {
             : `↑ "${task.title}" promoted`, false);
     }
 }
+
+function moveTaskToFirst(taskId) {
+    const task = tasks.find(t => t.id === taskId);
+    if (!task) return;
+    
+    // Находим всех задач в том же квадранте с тем же родителем (или без родителя)
+    const siblings = tasks.filter(t => t.quadrant === task.quadrant && t.parentId === task.parentId);
+    
+    // Если задача уже первая, ничего не делаем
+    if (siblings.length === 0 || siblings[0].id === task.id) return;
+    
+    // Находим индекс первой задачи среди сиблингов в общем массиве tasks
+    const firstSiblingIndex = tasks.findIndex(t => t.id === siblings[0].id);
+    if (firstSiblingIndex === -1) return;
+    
+    // Удаляем задачу из текущей позиции
+    const taskIndex = tasks.findIndex(t => t.id === task.id);
+    if (taskIndex === -1) return;
+    
+    tasks.splice(taskIndex, 1);
+    
+    // Вставляем задачу перед первой задачей среди сиблингов
+    tasks.splice(firstSiblingIndex, 0, task);
+    
+    saveTasks();
+    renderTasks();
+    
+    showWipToast(currentLang === 'ru' 
+        ? `↑ "${task.title}" перемещена на первое место`
+        : `↑ "${task.title}" moved to first position`, false);
+}
+
 function promoteTaskSelected() { if (selectedTasks.size !== 1) { alert(currentLang === 'ru' ? 'Выберите одну задачу' : 'Select one task'); return; } promoteTask([...selectedTasks][0]); clearSelection(); }
 function makeSubtaskSelected() { if (selectedTasks.size !== 1) { alert(currentLang === 'ru' ? 'Выберите одну задачу' : 'Select one task'); return; } makeTaskSubtask([...selectedTasks][0]); clearSelection(); }
 function toggleSelection(id) { if (selectedTasks.has(id)) selectedTasks.delete(id); else selectedTasks.add(id); renderTasks(); }
