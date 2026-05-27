@@ -480,6 +480,7 @@
 <header>
     <h1 data-i18n="title">Матрица Эйзенхауэра</h1>
     <div class="controls">
+        <button onclick="collapseAllSubtasks()" data-i18n="btn_collapse_all" style="padding: 8px 10px;">🗞</button>
         <button onclick="openSettings()" data-i18n="btn_settings">⚙️ Настройки</button>
         <button onclick="openImportSidebar()" data-i18n="btn_import_text">📋 Импорт текста</button>
         <button onclick="exportData()" data-i18n="btn_backup">💾 Скачать бэкап</button>
@@ -709,6 +710,7 @@ const translations = {
         btn_add_task: '+ Добавить задачу', btn_complete: '✅ Завершить', btn_delete_short: '🗑 Удалить',
         btn_copy: '📋 Копировать', btn_paste: '📌 Вставить', btn_make_subtask: '↳ Подзадача',
         btn_promote: '↰ Повысить', btn_clear: '✕', selected: 'выбрано', completed_section: '✅ Завершено',
+        btn_collapse_all: '🗞',
         q1_default: '🔥 Важно и Срочно', q1_desc: 'Кризисы, горящие дедлайны',
         q2_default: '📅 Важно и Не срочно', q2_desc: 'Стратегия, развитие, планирование',
         q3_default: '📋 Памятка', q3_desc: 'Заметки, референсы, информация к сведению',
@@ -734,6 +736,7 @@ const translations = {
         btn_delete_short: '🗑 Delete', btn_copy: '📋 Copy', btn_paste: '📌 Paste',
         btn_make_subtask: '↳ Make Subtask', btn_promote: '↰ Promote', btn_clear: '✕',
         selected: 'selected', completed_section: '✅ Completed',
+        btn_collapse_all: '🗞',
         q1_default: '🔥 Urgent & Important', q1_desc: 'Crises, urgent deadlines',
         q2_default: '📅 Important & Not Urgent', q2_desc: 'Strategy, development, planning',
         q3_default: '📋 Reference', q3_desc: 'Notes, references, FYI',
@@ -1051,6 +1054,12 @@ function createTaskElement(task, level = 1) {
 }
 
 function toggleSubtasks(taskId) { if (expandedTasks.has(taskId)) expandedTasks.delete(taskId); else expandedTasks.add(taskId); renderTasks(); }
+
+function collapseAllSubtasks() {
+    expandedTasks.clear();
+    renderTasks();
+}
+
 function addSubtaskInline(parentId) {
     const parentTask = tasks.find(t => t.id === parentId); if (!parentTask) return;
     const parentLevel = getTaskLevel(parentId);
