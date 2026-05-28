@@ -1737,13 +1737,14 @@ function copyTopicToClipboard(text) {
     if (!text) return;
     
     navigator.clipboard.writeText(text).then(() => {
-        const toast = document.getElementById('copyToast');
-        toast.classList.add('show');
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 2000);
+        showWipToast(currentLang === 'ru' 
+            ? '✓ Тема скопирована в буфер обмена'
+            : '✓ Topic copied to clipboard', false);
     }).catch(err => {
         console.error('Failed to copy:', err);
+        showWipToast(currentLang === 'ru' 
+            ? '✗ Ошибка копирования'
+            : '✗ Failed to copy', true);
     });
 }
 
