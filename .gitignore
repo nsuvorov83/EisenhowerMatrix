@@ -1,1 +1,27 @@
-Nothing needs to be added to .gitignore since only a single HTML file was modified and no build artifacts, dependencies, or temporary files are present in the changes.
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Editors
+.vscode/
+.idea/
+
+# Logs
+*.log
+
+# Dependencies
+node_modules/
+package-lock.json
+
+# Playwright
+test-results/
+playwright-report/
+playwright/.cache/
+
+# Private / local-only
+PROJECT_DESCRIPTION.md
+package.json
+playwright.config.js
+tests/

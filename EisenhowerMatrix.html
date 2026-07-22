@@ -789,7 +789,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function detectLanguage() {
-    const stored = localStorage.getItem('nikolay_vtb_language');
+    const stored = localStorage.getItem('eisenhower_language');
     if (stored) currentLang = stored;
     else {
         const browserLang = navigator.language || navigator.userLanguage;
@@ -809,9 +809,9 @@ function updateQuadrantNamesForLanguage(newLang, oldLang) {
 
 function changeLanguage(lang) {
     const oldLang = currentLang; currentLang = lang;
-    localStorage.setItem('nikolay_vtb_language', lang);
+    localStorage.setItem('eisenhower_language', lang);
     updateQuadrantNamesForLanguage(lang, oldLang); applyLanguage(lang);
-    const stored = localStorage.getItem('nikolay_vtb_tasks');
+    const stored = localStorage.getItem('eisenhower_tasks');
     if (!stored || JSON.parse(stored).length === 0) { loadTasks(true); renderTasks(); }
 }
 
@@ -837,7 +837,7 @@ function applyLanguage(lang) {
 }
 
 function loadQuadrantConfig() {
-    const stored = localStorage.getItem('nikolay_vtb_quadrant_config');
+    const stored = localStorage.getItem('eisenhower_quadrant_config');
     if (stored) quadrantConfig = JSON.parse(stored);
     else quadrantConfig = JSON.parse(JSON.stringify(defaultQuadrantConfig));
     for (let q = 1; q <= 4; q++) {
@@ -847,7 +847,7 @@ function loadQuadrantConfig() {
         }
     }
 }
-function saveQuadrantConfig() { localStorage.setItem('nikolay_vtb_quadrant_config', JSON.stringify(quadrantConfig)); }
+function saveQuadrantConfig() { localStorage.setItem('eisenhower_quadrant_config', JSON.stringify(quadrantConfig)); }
 function updateQuadrantDisplay() {
     const root = document.documentElement;
     for (let q = 1; q <= 4; q++) {
@@ -942,11 +942,11 @@ function switchTab(tab) {
 }
 
 function loadTasks(forceDefault = false) {
-    const stored = localStorage.getItem('nikolay_vtb_tasks');
+    const stored = localStorage.getItem('eisenhower_tasks');
     if (stored && !forceDefault) tasks = JSON.parse(stored);
     else { tasks = JSON.parse(JSON.stringify(defaultTasksByLang[currentLang])); tasks.forEach((t,i) => t.id = Date.now() + i); saveTasks(); }
 }
-function saveTasks() { localStorage.setItem('nikolay_vtb_tasks', JSON.stringify(tasks)); }
+function saveTasks() { localStorage.setItem('eisenhower_tasks', JSON.stringify(tasks)); }
 
 function getTaskLevel(taskId) {
     let level = 1, current = tasks.find(t => t.id === taskId);
@@ -1753,7 +1753,7 @@ function copyTopicToClipboard(text) {
     let workTasks = new Set();
     
     function loadWorkTasks() {
-        const stored = localStorage.getItem('nikolay_vtb_work_tasks');
+        const stored = localStorage.getItem('eisenhower_work_tasks');
         if (stored) {
             try {
                 const arr = JSON.parse(stored);
@@ -1767,7 +1767,7 @@ function copyTopicToClipboard(text) {
     }
     
     function saveWorkTasks() {
-        localStorage.setItem('nikolay_vtb_work_tasks', JSON.stringify([...workTasks]));
+        localStorage.setItem('eisenhower_work_tasks', JSON.stringify([...workTasks]));
     }
 
     function cleanupWorkTasks() {
