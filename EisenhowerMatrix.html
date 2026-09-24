@@ -482,6 +482,7 @@
     <h1 data-i18n="title">Матрица Эйзенхауэра</h1>
     <div class="controls">
         <button onclick="collapseAllSubtasks()" data-i18n="btn_collapse_all" title="Свернуть все вложенные задачи" style="padding: 8px 10px;">🗞</button>
+        <button onclick="deleteCompletedTasks()" data-i18n="btn_clear_completed" title="Удалить все завершённые задачи" style="padding: 8px 10px;">🧹</button>
         <button onclick="openSettings()" data-i18n="btn_settings">⚙️ Настройки</button>
         <button onclick="openImportSidebar()" data-i18n="btn_import_text">📋 Импорт текста</button>
         <button onclick="exportData()" data-i18n="btn_backup">💾 Скачать бэкап</button>
@@ -698,6 +699,7 @@ const MAX_LEVEL = 5;
 const translations = {
     ru: {
         title: 'Матрица Эйзенхауэра', btn_settings: '⚙️ Настройки', btn_backup: '💾 Скачать бэкап',
+        btn_clear_completed: '🧹', clear_completed_none: 'Нет завершённых задач для удаления',
         btn_import: '📂 Загрузить JSON', btn_import_text: '📋 Импорт текста', edit_task: 'Редактирование',
         tab_task: '📝 Задача', tab_settings: '⚙️ Настройки', label_title: 'Название задачи *',
         label_topic: 'Тема переписки / Контекст', label_date: 'Срок (дата и время)', label_category: 'Категория',
@@ -723,6 +725,7 @@ const translations = {
     },
     en: {
         title: 'Eisenhower Matrix', btn_settings: '⚙️ Settings', btn_backup: '💾 Download Backup',
+        btn_clear_completed: '🧹', clear_completed_none: 'No completed tasks to delete',
         btn_import: '📂 Import JSON', btn_import_text: '📋 Import Text', edit_task: 'Edit Task',
         tab_task: '📝 Task', tab_settings: '⚙️ Settings', label_title: 'Task Name *',
         label_topic: 'Topic / Context', label_date: 'Due Date & Time', label_category: 'Category',
@@ -1061,6 +1064,43 @@ function toggleSubtasks(taskId) { if (expandedTasks.has(taskId)) expandedTasks.d
 function collapseAllSubtasks() {
     expandedTasks.clear();
     renderTasks();
+}
+
+function deleteCompletedTasks() {
+    // Подзадачи не удаляются, пока не завершена их родительская задача:
+    // удаляются только завершённые задачи с завершённой цепочкой предков
+    const isChainCompleted = (task) => {
+        let parentId = task.parentId;
+        while (parentId) {
+            const parent = tasks.find(t => t.id === parentId);
+            if (!parent) break;
+            if (!parent.completed) return false;
+            parentId = parent.parentId;
+        }
+        return true;
+    };
+    const completedTasks = tasks.filter(t => t.completed && isChainCompleted(t));
+    if (completedTasks.length === 0) {
+        showWipToast(translations[currentLang].clear_completed_none, true);
+        return;
+    }
+    const idsToDelete = new Set();
+    completedTasks.forEach(t => {
+        idsToDelete.add(t.id);
+        getAllSubtasks(t.id).forEach(st => idsToDelete.add(st.id));
+    });
+    const hasExtraSubtasks = idsToDelete.size > completedTasks.length,
+        msg = currentLang === 'ru'
+            ? `Удалить все завершённые задачи (${completedTasks.length} шт.)?${hasExtraSubtasks ? '\n\n⚠️ Подзадачи также будут удалены!' : ''}`
+            : `Delete all completed tasks (${completedTasks.length})?${hasExtraSubtasks ? '\n\n⚠️ Subtasks will also be deleted!' : ''}`;
+    if (!confirm(msg)) return;
+    tasks = tasks.filter(t => !idsToDelete.has(t.id));
+    idsToDelete.forEach(id => { selectedTasks.delete(id); workTasks.delete(id); });
+    saveTasks();
+    saveWorkTasks();
+    renderTasks();
+    updateWipUI();
+    showWipToast(currentLang === 'ru' ? `🗑 Удалено задач: ${idsToDelete.size}` : `🗑 Deleted tasks: ${idsToDelete.size}`, false);
 }
 
 function addSubtaskInline(parentId) {
