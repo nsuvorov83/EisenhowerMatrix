@@ -787,9 +787,42 @@ let tasks = [], selectedTasks = new Set(), currentInlineQuadrant = null, clipboa
     expandedTasks = new Set(), quadrantConfig = {};
 
 document.addEventListener('DOMContentLoaded', () => {
-    detectLanguage(); loadQuadrantConfig(); loadTasks(); renderTasks();
+    migrateLegacyStorage(); detectLanguage(); loadQuadrantConfig(); loadTasks(); renderTasks();
     updateQuadrantDisplay(); applyLanguage(currentLang);
 });
+
+// Разовая миграция данных из прежней версии (префикс localStorage сменился на eisenhower_)
+function migrateLegacyStorage() {
+    const legacyPrefix = 'nikolay_vtb_', modernPrefix = 'eisenhower_';
+    const isUntouchedDemo = (raw) => {
+        try {
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr) || arr.length === 0) return false;
+            const demoTitles = [...defaultTasksByLang.ru, ...defaultTasksByLang.en].map(t => t.title);
+            return arr.every(t => demoTitles.includes(t.title));
+        } catch (e) { return false; }
+    };
+    let migrated = false;
+    const copyIfAbsent = (suffix) => {
+        const legacy = localStorage.getItem(legacyPrefix + suffix);
+        if (legacy && !localStorage.getItem(modernPrefix + suffix)) {
+            localStorage.setItem(modernPrefix + suffix, legacy);
+            migrated = true;
+        }
+    };
+    copyIfAbsent('language');
+    copyIfAbsent('quadrant_config');
+    copyIfAbsent('work_tasks');
+    const legacyTasks = localStorage.getItem(legacyPrefix + 'tasks');
+    if (legacyTasks) {
+        const modernTasks = localStorage.getItem(modernPrefix + 'tasks');
+        if (!modernTasks || isUntouchedDemo(modernTasks)) {
+            localStorage.setItem(modernPrefix + 'tasks', legacyTasks);
+            migrated = true;
+        }
+    }
+    if (migrated) setTimeout(() => showWipToast(currentLang === 'ru' ? '✓ Данные перенесены из прежней версии приложения' : '✓ Data migrated from the previous app version', false), 500);
+}
 
 function detectLanguage() {
     const stored = localStorage.getItem('eisenhower_language');
@@ -841,8 +874,11 @@ function applyLanguage(lang) {
 
 function loadQuadrantConfig() {
     const stored = localStorage.getItem('eisenhower_quadrant_config');
-    if (stored) quadrantConfig = JSON.parse(stored);
-    else quadrantConfig = JSON.parse(JSON.stringify(defaultQuadrantConfig));
+    quadrantConfig = JSON.parse(JSON.stringify(defaultQuadrantConfig));
+    if (stored) {
+        const parsed = JSON.parse(stored);
+        for (let q = 1; q <= 4; q++) if (parsed[q]) quadrantConfig[q] = { ...quadrantConfig[q], ...parsed[q] };
+    }
     for (let q = 1; q <= 4; q++) {
         const t = translations[currentLang];
         if (!stored || quadrantConfig[q].name === defaultQuadrantConfig[q].name) {
